@@ -563,6 +563,12 @@ theorem option_map {f : α → option β} {g : α → β → σ}
   (hf : computable f) (hg : computable₂ g) : computable (λ a, (f a).map (g a)) :=
 option_bind hf (option_some.comp₂ hg)
 
+theorem option_get_or_else {f : α → option β} {g : α → β}
+  (hf : computable f) (hg : computable g) :
+  computable (λ a, (f a).get_or_else (g a)) :=
+(computable.option_cases hf hg (show computable₂ (λ a b, b), from computable.snd)).of_eq $
+λ a, by cases f a; refl
+
 theorem sum_cases
   {f : α → β ⊕ γ} {g : α → β → σ} {h : α → γ → σ}
   (hf : computable f) (hg : computable₂ g) (hh : computable₂ h) :
