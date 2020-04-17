@@ -6,6 +6,8 @@ Authors: Scott Morrison
 import data.fintype.basic
 import category_theory.limits.limits
 import category_theory.limits.shapes.finite_limits
+import category_theory.limits.shapes.wide_pullbacks
+import category_theory.limits.shapes.binary_products
 import category_theory.sparse
 
 /-!
@@ -30,15 +32,15 @@ universes v u
 local attribute [tidy] tactic.case_bash
 
 /-- The type of objects for the diagram indexing a pullback. -/
-@[derive decidable_eq, derive inhabited] inductive walking_cospan : Type v
-| left | right | one
+abbreviation walking_cospan : Type v := wide_pullback_shape walking_pair
+
+abbreviation walking_cospan.left : walking_cospan := some walking_pair.left
+abbreviation walking_cospan.right : walking_cospan := some walking_pair.right
+abbreviation walking_cospan.one : walking_cospan := none
+
 /-- The type of objects for the diagram indexing a pushout. -/
 @[derive decidable_eq, derive inhabited] inductive walking_span : Type v
 | zero | left | right
-
-instance fintype_walking_cospan : fintype walking_cospan :=
-{ elems := [walking_cospan.left, walking_cospan.right, walking_cospan.one].to_finset,
-  complete := λ x, by { cases x; simp } }
 
 instance fintype_walking_span : fintype walking_span :=
 { elems := [walking_span.zero, walking_span.left, walking_span.right].to_finset,
@@ -46,45 +48,41 @@ instance fintype_walking_span : fintype walking_span :=
 
 namespace walking_cospan
 
-/-- The arrows in a pullback diagram. -/
-@[derive decidable_eq] inductive hom : walking_cospan → walking_cospan → Type v
-| inl : hom left one
-| inr : hom right one
-| id : Π X : walking_cospan.{v}, hom X X
+abbreviation hom : walking_cospan → walking_cospan → Type v := wide_pullback_shape.hom
 
-/-- Satisfying the inhabited linter -/
-instance hom.inhabited : inhabited (hom left one) :=
-{ default := hom.inl }
+-- open hom
 
-open hom
-
-instance fintype_walking_cospan_hom (j j' : walking_cospan) : fintype (hom j j') :=
-{ elems := walking_cospan.rec_on j
-    (walking_cospan.rec_on j' [hom.id left].to_finset ∅ [inl].to_finset)
-    (walking_cospan.rec_on j' ∅ [hom.id right].to_finset [inr].to_finset)
-    (walking_cospan.rec_on j' ∅ ∅ [hom.id one].to_finset),
-  complete := by tidy }
+instance fintype_walking_cospan_hom (j j' : walking_cospan) : fintype (hom j j') := infer_instance
+-- { elems := walking_cospan.rec_on j
+--     (walking_cospan.rec_on j' [hom.id left].to_finset ∅ [inl].to_finset)
+--     (walking_cospan.rec_on j' ∅ [hom.id right].to_finset [inr].to_finset)
+--     (walking_cospan.rec_on j' ∅ ∅ [hom.id one].to_finset),
+--   complete := by tidy }
 
 /-- Composition of morphisms in the category indexing a pullback. -/
-def hom.comp : Π (X Y Z : walking_cospan) (f : hom X Y) (g : hom Y Z), hom X Z
-| _ _ _ (id _) h := h
-| _ _ _ inl    (id one) := inl
-| _ _ _ inr    (id one) := inr
-.
+-- def hom.comp : Π (X Y Z : walking_cospan) (f : hom X Y) (g : hom Y Z), hom X Z
+-- | _ _ _ (id _) h := h
+-- | _ _ _ inl    (id one) := inl
+-- | _ _ _ inr    (id one) := inr
+-- .
 
-instance category_struct : category_struct walking_cospan :=
-{ hom  := hom,
-  id   := hom.id,
-  comp := hom.comp, }
+instance category_struct : category_struct walking_cospan := infer_instance
+-- { hom  := hom,
+--   id   := hom.id,
+--   comp := hom.comp, }
+
+abbreviation hom.inl : left ⟶ one := wide_pullback_shape.hom.term _
+abbreviation hom.inr : right ⟶ one := wide_pullback_shape.hom.term _
+abbreviation hom.id (X : walking_cospan) : X ⟶ X := wide_pullback_shape.hom.id X
 
 instance (X Y : walking_cospan) : subsingleton (X ⟶ Y) := by tidy
 
 -- We make this a @[simp] lemma later; if we do it now there's a mysterious
 -- failure in `cospan`, below.
-lemma hom_id (X : walking_cospan.{v}) : hom.id X = 𝟙 X := rfl
+-- lemma hom_id (X : walking_cospan.{v}) : hom.id X = 𝟙 X := rfl
 
 /-- The walking_cospan is the index diagram for a pullback. -/
-instance : small_category.{v} walking_cospan.{v} := sparse_category
+instance : small_category.{v} walking_cospan.{v} := infer_instance
 
 instance : fin_category.{v} walking_cospan.{v} :=
 { fintype_hom := walking_cospan.fintype_walking_cospan_hom }
@@ -137,22 +135,29 @@ instance : fin_category.{v} walking_span.{v} :=
 
 end walking_span
 
-open walking_span walking_cospan walking_span.hom walking_cospan.hom
+open walking_span walking_cospan walking_span.hom wide_pullback_shape.hom walking_cospan.hom
+-- open walking_span walking_span.hom
 
 variables {C : Type u} [𝒞 : category.{v} C]
 include 𝒞
 
 /-- `cospan f g` is the functor from the walking cospan hitting `f` and `g`. -/
 def cospan {X Y Z : C} (f : X ⟶ Z) (g : Y ⟶ Z) : walking_cospan.{v} ⥤ C :=
-{ obj := λ x, match x with
-  | left := X
-  | right := Y
-  | one := Z
+{ obj := λ j, option.cases_on j Z (λ j', limits.walking_pair.cases_on j' X Y),
+  map := λ x y h,
+  begin
+    cases h,
+      apply (𝟙 _),
+    cases h_1,
+    apply f,
+    apply g
   end,
-  map := λ x y h, match x, y, h with
-  | _, _, (id _) := 𝟙 _
-  | _, _, inl := f
-  | _, _, inr := g
+  map_comp' := λ x y z h₁ h₂,
+  begin
+    cases h₁,
+    simpa,
+    cases h₂,
+    simpa,
   end }
 
 /-- `span f g` is the functor from the walking span hitting `f` and `g`. -/
@@ -198,7 +203,7 @@ lemma cospan_map_id {X Y Z : C} (f : X ⟶ Z) (g : Y ⟶ Z) (w : walking_cospan)
 lemma span_map_id {X Y Z : C} (f : X ⟶ Y) (g : X ⟶ Z) (w : walking_span) :
   (span f g).map (walking_span.hom.id w) = 𝟙 _ := rfl
 
-/-- Every diagram indexing an equalizer is naturally isomorphic (actually, equal) to a `cospan` -/
+-- /-- Every diagram indexing an equalizer is naturally isomorphic (actually, equal) to a `cospan` -/
 def diagram_iso_cospan (F : walking_cospan ⥤ C) :
   F ≅ cospan (F.map inl) (F.map inr) :=
 nat_iso.of_components (λ j, eq_to_iso $ by cases j; tidy) $ by tidy
@@ -210,7 +215,8 @@ nat_iso.of_components (λ j, eq_to_iso $ by cases j; tidy) $ by tidy
 
 variables {X Y Z : C}
 
-attribute [simp] walking_cospan.hom_id walking_span.hom_id
+-- attribute [simp] walking_cospan.hom_id walking_span.hom_id
+attribute [simp] walking_span.hom_id
 
 /-- A pullback cone is just a cone on the cospan formed by two morphisms `f : X ⟶ Z` and
     `g : Y ⟶ Z`.-/
@@ -230,7 +236,7 @@ abbreviation snd (t : pullback_cone f g) : t.X ⟶ Y := t.π.app right
 def mk {W : C} (fst : W ⟶ X) (snd : W ⟶ Y) (eq : fst ≫ f = snd ≫ g) : pullback_cone f g :=
 { X := W,
   π :=
-  { app := λ j, walking_cospan.cases_on j fst snd (fst ≫ f),
+  { app := λ j, option.cases_on j (fst ≫ f) (λ j', walking_pair.cases_on j' fst snd),
     naturality' := λ j j' f, by cases f; obviously } }
 
 @[simp] lemma mk_π_app_left {W : C} (fst : W ⟶ X) (snd : W ⟶ Y) (eq : fst ≫ f = snd ≫ g) :
@@ -250,9 +256,9 @@ end
 lemma equalizer_ext (t : pullback_cone f g) {W : C} {k l : W ⟶ t.X}
   (h₀ : k ≫ fst t = l ≫ fst t) (h₁ : k ≫ snd t = l ≫ snd t) :
   ∀ (j : walking_cospan), k ≫ t.π.app j = l ≫ t.π.app j
-| left := h₀
-| right := h₁
-| one := calc k ≫ t.π.app one = k ≫ t.π.app left ≫ (cospan f g).map inl : by rw ←t.w
+| (some walking_pair.left) := h₀
+| (some walking_pair.right) := h₁
+| none := calc k ≫ t.π.app one = k ≫ t.π.app left ≫ (cospan f g).map inl : by rw ←t.w
     ... = l ≫ t.π.app left ≫ (cospan f g).map inl : by rw [←category.assoc, h₀, category.assoc]
     ... = l ≫ t.π.app one : by rw t.w
 
@@ -276,8 +282,9 @@ def is_limit.mk (t : pullback_cone f g) (lift : Π (s : cone (cospan f g)), s.X 
     (w : ∀ j : walking_cospan, m ≫ t.π.app j = s.π.app j), m = lift s) :
   is_limit t :=
 { lift := lift,
-  fac' := λ s j, walking_cospan.cases_on j (fac_left s) (fac_right s) $
-    by rw [←t.w inl, ←s.w inl, ←fac_left s, category.assoc],
+  fac' := λ s j, option.cases_on j
+    (by rw [←t.w inl, ←s.w inl, ←fac_left s, category.assoc])
+    (λ j', walking_pair.cases_on j' (fac_left s) (fac_right s)),
   uniq' := uniq }
 
 end pullback_cone
@@ -302,7 +309,7 @@ def mk {W : C} (inl : Y ⟶ W) (inr : Z ⟶ W) (eq : f ≫ inl = g ≫ inr) : pu
 { X := W,
   ι :=
   { app := λ j, walking_span.cases_on j (f ≫ inl) inl inr,
-    naturality' := λ j j' f, by cases f; obviously } }
+    naturality' := λ j j' f, by { cases f; obviously } } }
 
 @[simp] lemma mk_ι_app_left {W : C} (inl : Y ⟶ W) (inr : Z ⟶ W) (eq : f ≫ inl = g ≫ inr) :
   (mk inl inr eq).ι.app left = inl := rfl
@@ -365,12 +372,14 @@ def cone.of_pullback_cone
 { X := t.X,
   π :=
   { app := λ X, t.π.app X ≫ eq_to_hom (by tidy),
-    naturality' := λ j j' g,
+    naturality' := λ a b g,
     begin
-      cases j; cases j'; cases g; dsimp; simp,
-      exact (t.w inl).symm,
-      exact (t.w inr).symm
-    end } }.
+      erw category.id_comp,
+      cases g with _ j,
+      { simp },
+      { rw [← t.w (term j)],
+        cases j; simp }
+    end } }
 
 @[simp] lemma cone.of_pullback_cone_π
   {F : walking_cospan.{v} ⥤ C} (t : pullback_cone (F.map inl) (F.map inr)) (j) :
