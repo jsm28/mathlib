@@ -11,6 +11,8 @@ import category_theory.limits.limits
 import category_theory.limits.preserves
 import category_theory.limits.shapes.pullbacks
 import category_theory.limits.shapes.binary_products
+import category_theory.limits.shapes.constructions.limits_of_products_and_equalizers
+import category_theory.limits.shapes.constructions.equalizers
 
 universes v u -- declare the `v`'s first; see `category_theory.category` for an explanation
 
@@ -155,21 +157,7 @@ def over_products_of_wide_pullbacks [has_wide_pullbacks.{v} C] {B : C} :
 
 def over_finite_products_of_finite_wide_pullbacks [has_finite_wide_pullbacks.{v} C] {B : C} :
   has_finite_products.{v} (over B) :=
-{ has_limits_of_shape := λ J _ _, over_product_of_wide_pullback }
-
--- def over_finite_products_of_finite_limits [has_finite_limits.{v} C] {B : C} : has_finite_products.{v} (over B) :=
--- { has_limits_of_shape := λ J 𝒥₁ 𝒥₂, by exactI
---   { has_limit := λ F,
---     { cone := (make_other_cone B F).obj (limit.cone (grow_diagram B F)),
---       is_limit := is_limit.mk_cone_morphism
---       (λ s, (cones_equiv B F).counit_iso.inv.app s ≫ (make_other_cone B F).map (limit.cone_morphism ((make_cone B F).obj s)))
---       (λ s m,
---       begin
---         apply (cones_equiv B F).inverse.injectivity,
---         rw ← cancel_mono ((cones_equiv B F).unit_iso.app (limit.cone _)).inv,
---         apply is_limit.uniq_cone_morphism (limit.is_limit _),
---       end)
---       } } }
+{ has_limits_of_shape := λ J 𝒥₁ 𝒥₂, by exactI over_product_of_wide_pullback }
 
 end construct_products
 
@@ -248,6 +236,17 @@ example {B : C} [has_pullbacks.{v} C] : has_pullbacks.{v} (over B) :=
 /-- Make sure we can derive equalizers in `over B`. -/
 example {B : C} [has_equalizers.{v} C] : has_equalizers.{v} (over B) :=
 { has_limits_of_shape := infer_instance }
+
+instance has_finite_limits {B : C} [has_finite_wide_pullbacks.{v} C] : has_finite_limits.{v} (over B) :=
+begin
+  apply @finite_limits_from_equalizers_and_finite_products _ _ _ _,
+  exact construct_products.over_finite_products_of_finite_wide_pullbacks,
+  apply @has_equalizers_of_pullbacks_and_binary_products _ _ _ _,
+  haveI: has_pullbacks.{v} C := ⟨infer_instance⟩,
+  exact construct_products.over_binary_product_of_pullback,
+  split,
+  apply_instance
+end
 
 end category_theory.over
 
