@@ -69,32 +69,17 @@ instance category : small_category (wide_pullback_shape J) := sparse_category
 instance fin_category [fintype J] [decidable_eq J] : fin_category (wide_pullback_shape J) :=
 { fintype_hom := wide_pullback_shape.fintype_hom }
 
--- instance connected : connected (wide_pullback_shape J) :=
--- begin
---   apply connected.of_induct,
---   introv _ t,
---   cases j,
---   exact a,
---   rwa t (hom.term j),
--- end
-
 @[simp] lemma hom_id (X : wide_pullback_shape J) : hom.id X = 𝟙 X := rfl
 
 variables {C : Type u} [𝒞 : category.{v} C]
 include 𝒞
 
--- def thing : has_limits_of_shape.{v} (wide_pullback_shape pempty) C :=
--- { has_limit := λ F,
---   { cone :=
---     { X := F.obj none,
---       π := { app := λ j, begin dsimp, cases j, apply (𝟙 _), apply j.elim,  end, naturality' := begin end }
---       }
---   }
--- }
-
 local attribute [tidy] tactic.case_bash
 
-
+/--
+Construct a functor out of the wide pullback shape given a J-indexed collection of arrows to a
+fixed object.
+-/
 @[simps]
 def make_functor (B : C) (objs : J → C) (arrows : Π (j : J), objs j ⟶ B) : wide_pullback_shape J ⥤ C :=
 { obj := λ j, option.cases_on j B objs,

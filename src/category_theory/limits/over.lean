@@ -94,14 +94,16 @@ instance forget_preserves_colimits [has_colimits.{v} C] {X : C} :
 
 namespace construct_products
 
-local attribute [tidy] tactic.case_bash
-
+/-- (Impl) Given a product shape in `C/B`, construct the corresponding wide pullback shape in `C`. -/
 @[reducible]
 def grow_diagram (B : C) {J : Type v} (F : discrete J ⥤ over B) : wide_pullback_shape J ⥤ C :=
 wide_pullback_shape.make_functor B (λ j, (F.obj j).left) (λ j, (F.obj j).hom)
 
+local attribute [tidy] tactic.case_bash
+
+/-- (Impl) Pull these out to avoid timeouts. -/
 @[simps]
-def make_cone (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone F ⥤ cone (grow_diagram B F) :=
+def cones_equiv_inverse (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone F ⥤ cone (grow_diagram B F) :=
 { obj := λ c,
   { X := c.X.left,
     π := { app := λ X, option.cases_on X c.X.hom (λ (j : J), (c.π.app j).left) } },
@@ -116,26 +118,29 @@ def make_cone (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone F ⥤ cone
         refl }
     end } }
 
+/-- (Impl) Pull these out to avoid timeouts. -/
 @[simps]
-def make_other_cone (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone (grow_diagram B F) ⥤ cone F :=
+def cones_equiv_functor (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone (grow_diagram B F) ⥤ cone F :=
 { obj := λ c,
   { X := over.mk (c.π.app none),
     π := { app := λ j, over.hom_mk (c.π.app (some j)) (by apply c.w (wide_pullback_shape.hom.term j)) } },
   map := λ c₁ c₂ f,
   { hom := over.hom_mk f.hom } }
 
+/-- (Impl) Establish an equivalence between the category of cones for `F` and for the "grown" `F`. -/
 @[simps]
 def cones_equiv (B : C) {J : Type v} (F : discrete J ⥤ over B) : cone (grow_diagram B F) ≌ cone F :=
-{ functor := make_other_cone B F,
-  inverse := make_cone B F,
+{ functor := cones_equiv_functor B F,
+  inverse := cones_equiv_inverse B F,
   unit_iso := nat_iso.of_components (λ _, cones.ext {hom := 𝟙 _, inv := 𝟙 _} (by tidy)) (by tidy),
   counit_iso := nat_iso.of_components (λ _, cones.ext {hom := over.hom_mk (𝟙 _), inv := over.hom_mk (𝟙 _)} (by tidy)) (by tidy) }
 
+/-- Use the above equivalence to prove we have a limit. -/
 def has_over_limit_discrete_of_grown {B : C} {J : Type v} (F : discrete J ⥤ over B) [has_limit (grow_diagram B F)] :
   has_limit F :=
-{ cone := (make_other_cone B F).obj (limit.cone (grow_diagram B F)),
+{ cone := (cones_equiv B F).functor.obj (limit.cone (grow_diagram B F)),
   is_limit := is_limit.mk_cone_morphism
-  (λ s, (cones_equiv B F).counit_iso.inv.app s ≫ (make_other_cone B F).map (limit.cone_morphism ((make_cone B F).obj s)))
+  (λ s, (cones_equiv B F).counit_iso.inv.app s ≫ (cones_equiv B F).functor.map (limit.cone_morphism ((cones_equiv B F).inverse.obj s)))
   (λ s m,
     begin
       apply (cones_equiv B F).inverse.injectivity,
@@ -143,18 +148,22 @@ def has_over_limit_discrete_of_grown {B : C} {J : Type v} (F : discrete J ⥤ ov
       apply is_limit.uniq_cone_morphism (limit.is_limit _),
     end) }
 
+/-- Given a wide pullback in `C`, construct a product in `C/B`. -/
 def over_product_of_wide_pullback {J : Type v} [has_limits_of_shape.{v} (wide_pullback_shape J) C] {B : C} :
   has_limits_of_shape.{v} (discrete J) (over B) :=
 { has_limit := λ F, has_over_limit_discrete_of_grown F }
 
+/-- Given a pullback in `C`, construct a binary product in `C/B`. -/
 def over_binary_product_of_pullback [has_pullbacks.{v} C] {B : C} :
   has_binary_products.{v} (over B) :=
 { has_limits_of_shape := over_product_of_wide_pullback }
 
+/-- Given all wide pullbacks in `C`, construct products in `C/B`. -/
 def over_products_of_wide_pullbacks [has_wide_pullbacks.{v} C] {B : C} :
   has_products.{v} (over B) :=
 { has_limits_of_shape := λ J, over_product_of_wide_pullback }
 
+/-- Given all finite wide pullbacks in `C`, construct finite products in `C/B`. -/
 def over_finite_products_of_finite_wide_pullbacks [has_finite_wide_pullbacks.{v} C] {B : C} :
   has_finite_products.{v} (over B) :=
 { has_limits_of_shape := λ J 𝒥₁ 𝒥₂, by exactI over_product_of_wide_pullback }
@@ -240,12 +249,23 @@ example {B : C} [has_equalizers.{v} C] : has_equalizers.{v} (over B) :=
 instance has_finite_limits {B : C} [has_finite_wide_pullbacks.{v} C] : has_finite_limits.{v} (over B) :=
 begin
   apply @finite_limits_from_equalizers_and_finite_products _ _ _ _,
-  exact construct_products.over_finite_products_of_finite_wide_pullbacks,
-  apply @has_equalizers_of_pullbacks_and_binary_products _ _ _ _,
-  haveI: has_pullbacks.{v} C := ⟨infer_instance⟩,
-  exact construct_products.over_binary_product_of_pullback,
-  split,
-  apply_instance
+  { exact construct_products.over_finite_products_of_finite_wide_pullbacks },
+  { apply @has_equalizers_of_pullbacks_and_binary_products _ _ _ _,
+    { haveI: has_pullbacks.{v} C := ⟨infer_instance⟩,
+      exact construct_products.over_binary_product_of_pullback },
+    { split,
+      apply_instance} }
+end
+
+instance has_limits {B : C} [has_wide_pullbacks.{v} C] : has_limits.{v} (over B) :=
+begin
+  apply @limits_from_equalizers_and_products _ _ _ _,
+  { exact construct_products.over_products_of_wide_pullbacks },
+  { apply @has_equalizers_of_pullbacks_and_binary_products _ _ _ _,
+    { haveI: has_pullbacks.{v} C := ⟨infer_instance⟩,
+      exact construct_products.over_binary_product_of_pullback },
+    { split,
+      apply_instance } }
 end
 
 end category_theory.over
@@ -307,3 +327,5 @@ instance forget_preserves_limits [has_limits.{v} C] {X : C} :
     preserves_limit_of_preserves_limit_cone (limit.is_limit F) (forget_limit_is_limit F) } }
 
 end category_theory.under
+
+#lint
