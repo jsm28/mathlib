@@ -7,6 +7,7 @@ import data.fintype.basic
 import category_theory.limits.limits
 import category_theory.limits.shapes.finite_limits
 import category_theory.sparse
+import category_theory.punit
 -- import category_theory.connected
 
 universes v u
@@ -79,6 +80,31 @@ instance fin_category [fintype J] [decidable_eq J] : fin_category (wide_pullback
 
 @[simp] lemma hom_id (X : wide_pullback_shape J) : hom.id X = 𝟙 X := rfl
 
+variables {C : Type u} [𝒞 : category.{v} C]
+include 𝒞
+
+-- def thing : has_limits_of_shape.{v} (wide_pullback_shape pempty) C :=
+-- { has_limit := λ F,
+--   { cone :=
+--     { X := F.obj none,
+--       π := { app := λ j, begin dsimp, cases j, apply (𝟙 _), apply j.elim,  end, naturality' := begin end }
+--       }
+--   }
+-- }
+
+local attribute [tidy] tactic.case_bash
+
+
+@[simps]
+def make_functor (B : C) (objs : J → C) (arrows : Π (j : J), objs j ⟶ B) : wide_pullback_shape J ⥤ C :=
+{ obj := λ j, option.cases_on j B objs,
+  map := λ X Y f,
+  begin
+    cases f with _ j,
+    { apply (𝟙 _) },
+    { exact arrows j }
+  end }
+
 end wide_pullback_shape
 
 variables (C : Type u) [𝒞 : category.{v} C]
@@ -92,8 +118,9 @@ class has_wide_pullbacks :=
 class has_finite_wide_pullbacks :=
 (has_limits_of_shape : Π (J : Type v) [decidable_eq J] [fintype J], has_limits_of_shape.{v} (wide_pullback_shape J) C)
 
-attribute [instance] has_wide_pullbacks.has_limits_of_shape
-
 /-- Finite wide pullbacks are finite limits, so if `C` has all finite limits, it also has finite wide pullbacks -/
-def has_pullbacks_of_has_finite_limits [has_finite_limits.{v} C] : has_finite_wide_pullbacks.{v} C :=
+def has_finite_wide_pullbacks_of_has_finite_limits [has_finite_limits.{v} C] : has_finite_wide_pullbacks.{v} C :=
 { has_limits_of_shape := λ J _ _, by exactI (has_finite_limits.has_limits_of_shape _) }
+
+attribute [instance] has_wide_pullbacks.has_limits_of_shape
+attribute [instance] has_finite_wide_pullbacks.has_limits_of_shape

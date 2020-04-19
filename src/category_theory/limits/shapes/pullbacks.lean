@@ -79,7 +79,7 @@ instance (X Y : walking_cospan) : subsingleton (X ⟶ Y) := by tidy
 
 -- We make this a @[simp] lemma later; if we do it now there's a mysterious
 -- failure in `cospan`, below.
--- lemma hom_id (X : walking_cospan.{v}) : hom.id X = 𝟙 X := rfl
+lemma hom_id (X : walking_cospan.{v}) : hom.id X = 𝟙 X := rfl
 
 /-- The walking_cospan is the index diagram for a pullback. -/
 instance : small_category.{v} walking_cospan.{v} := infer_instance
@@ -143,22 +143,7 @@ include 𝒞
 
 /-- `cospan f g` is the functor from the walking cospan hitting `f` and `g`. -/
 def cospan {X Y Z : C} (f : X ⟶ Z) (g : Y ⟶ Z) : walking_cospan.{v} ⥤ C :=
-{ obj := λ j, option.cases_on j Z (λ j', limits.walking_pair.cases_on j' X Y),
-  map := λ x y h,
-  begin
-    cases h,
-      apply (𝟙 _),
-    cases h_1,
-    apply f,
-    apply g
-  end,
-  map_comp' := λ x y z h₁ h₂,
-  begin
-    cases h₁,
-    simpa,
-    cases h₂,
-    simpa,
-  end }
+wide_pullback_shape.make_functor Z (λ j, walking_pair.cases_on j X Y) (λ j, walking_pair.cases_on j f g)
 
 /-- `span f g` is the functor from the walking span hitting `f` and `g`. -/
 def span {X Y Z : C} (f : X ⟶ Y) (g : X ⟶ Z) : walking_span.{v} ⥤ C :=
@@ -215,7 +200,7 @@ nat_iso.of_components (λ j, eq_to_iso $ by cases j; tidy) $ by tidy
 
 variables {X Y Z : C}
 
--- attribute [simp] walking_cospan.hom_id walking_span.hom_id
+-- attribute [simp] walking_cospan.hom_id
 attribute [simp] walking_span.hom_id
 
 /-- A pullback cone is just a cone on the cospan formed by two morphisms `f : X ⟶ Z` and
